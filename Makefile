@@ -14,6 +14,7 @@ redis: $(OBJS)
 %.o: %.c
 	$(CC) -c $(CFLAGS) -o $@ $<
 
+demo.o: redis.h
 redis.o: redis.h
 
 clean:
