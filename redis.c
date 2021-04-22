@@ -189,7 +189,7 @@ static int _redis_recv(redis_t *redis, char flag, redis_data_t *data) {
 	switch(data->c) {
 		case '*':
 			data->sz = atoi(redis->buf + 1);
-			if(data->sz <= 0) return REDIS_FALSE;
+			if(data->sz <= 0) return REDIS_TRUE;
 			data->data = (redis_data_t*) malloc(sizeof(redis_data_t)*data->sz);
 			memset(data->data, 0, sizeof(redis_data_t)*data->sz);
 			for(i=0; i<data->sz; i++) {
@@ -249,22 +249,7 @@ int redis_recv(redis_t *redis, char flag) {
 	if(!redis_dgets(redis)) return REDIS_FALSE;
 
 	redis->data.c = redis->buf[0];
-
-	switch(redis->data.c) {
-		case '*':
-		case '$':
-			if(!_redis_recv(redis, flag, &redis->data)) return REDIS_FALSE;
-			break;
-		case ':':
-			redis->data.l = strtol(redis->buf + 1, NULL, 10);
-			break;
-		case '+':
-		case '-':
-			break;
-		default:
-			fprintf(stderr, "Unkown REDIS response data type '%c'\n", redis->data.c);
-			return REDIS_FALSE;
-	}
+	if(!_redis_recv(redis, flag, &redis->data)) return REDIS_FALSE;
 
 	return (flag == redis->data.c || flag == '\0' || redis->data.c == '+') ? REDIS_TRUE : REDIS_FALSE;
 }

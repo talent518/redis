@@ -3,32 +3,34 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <math.h>
 
 #include "redis.h"
 
-void _print_data(redis_data_t *data, int indent) {
+void _print_data(redis_data_t *data, int indent, int idx) {
 	int i;
-	for(i=0; i<indent; i++) putchar(' ');
+	printf("%*d) ", indent, idx);
 	switch(data->c) {
 		case '*':
 			printf("*%d\n", data->sz);
-			for(i=0; i<data->sz; i++) _print_data(&data->data[i], indent+4);
+			indent += ceil(log10(data->sz));
+			for(i=0; i<data->sz; i++) _print_data(&data->data[i], indent+2, i+1);
 			break;
 		case '$':
-			printf("$%d %s\n", data->sz, data->sz > 0 ? data->str : "(nil)");
+			printf("$%d %s\n", data->sz, data->sz > 0 ? data->str : "");
 			break;
 		case ':':
 			printf(":%ld\n", data->l);
 			break;
 		default:
-			printf("%c%s\n", data->c, data->str);
+			printf("%c%s\n", data->c, data->str ? data->str : "");
 			break;
 	}
 }
 
 #define print_data(data) do { \
 		printf("************************************************************************************\n"); \
-		_print_data(data, 0); \
+		_print_data(data, 0, 1); \
 	} while(0)
 
 int main(int argc, const char *argv[]) {
