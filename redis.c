@@ -235,6 +235,7 @@ static int _redis_recv(redis_t *redis, char flag, redis_data_t *data) {
 			data->sz = strlen(data->str);
 			break;
 	}
+	return REDIS_TRUE;
 }
 
 int redis_recv(redis_t *redis, char flag) {
