@@ -11,12 +11,6 @@
 #include <netdb.h>
 #include <unistd.h>
 
-#define REDIS_FLAG_OK    '+'
-#define REDIS_FLAG_ERR   '-'
-#define REDIS_FLAG_INT   ':'
-#define REDIS_FLAG_BULK  '$'
-#define REDIS_FLAG_MULTI '*'
-
 #include "redis.h"
 
 redis_t *redis_init(redis_t *redis, int flag) {
@@ -74,6 +68,11 @@ int redis_connect(redis_t *redis, const char *host, int port) {
 	return REDIS_TRUE;
 }
 
+char* redis_error(redis_t *redis) {
+	if(redis->data.c == '-') return redis->data.str;
+	else "Unknown";
+}
+
 #define REDIS_DEBUG if((redis->flag & REDIS_FLAG_DEBUG) != 0)
 
 #define CASE(chr, c, fmt, type) \
@@ -106,6 +105,7 @@ int redis_send(redis_t *redis, const char *format, ...) {
 		switch(*p) {
 			case 's': {
 				ptr = va_arg(ap, const char*);
+				if(ptr == NULL) ptr = "";
 				n = strlen(ptr);
 				REDIS_DEBUG printf("> $%d\n> %s\n", n, ptr);
 				fprintf(redis->fp, "$%d\r\n%s\r\n", n, ptr);
@@ -113,6 +113,7 @@ int redis_send(redis_t *redis, const char *format, ...) {
 			}
 			case 'S': {
 				ptr = va_arg(ap, const char*);
+				if(ptr == NULL) ptr = "";
 				n = va_arg(ap, int);
 				REDIS_DEBUG {
 					printf("> $%d\n> ", n);
@@ -202,9 +203,7 @@ static int _redis_recv(redis_t *redis, char flag, redis_data_t *data) {
 			break;
 		case '$':
 			data->sz = atoi(redis->buf + 1);
-			if(data->sz <= 0) {
-				data->str = NULL;
-			} else {
+			if(data->sz >= 0) {
 				data->str = (char*) malloc(data->sz+2);
 				i = fread(data->str, 1, data->sz+2, redis->fp);
 				if(i != data->sz+2) {
@@ -230,9 +229,16 @@ static int _redis_recv(redis_t *redis, char flag, redis_data_t *data) {
 		case ':':
 			data->l = strtol(redis->buf + 1, NULL, 10);
 			break;
-		default:
+		case '-':
+			data->str = strdup(redis->buf + 5);
+			data->sz = strlen(data->str);
+			break;
+		case '+':
 			data->str = strdup(redis->buf + 1);
 			data->sz = strlen(data->str);
+			break;
+		default:
+			printf("===%x===\n", data->c);
 			break;
 	}
 	return REDIS_TRUE;
@@ -333,15 +339,23 @@ int redis_type(redis_t *redis, const char *key, char **rtype) {
 	return REDIS_TRUE;
 }
 
+int redis_del(redis_t *redis, const char *key, int *exists) {
+	if(!redis_send(redis, "ss", "DEL", key)) return REDIS_FALSE;
+	if(!redis_recv(redis, REDIS_FLAG_INT)) return REDIS_FALSE;
+	if(exists) *exists = redis->data.l;
+	return REDIS_TRUE;
+}
+
 int redis_set(redis_t *redis, const char *key, const char *value) {
 	if(!redis_send(redis, "sss", "SET", key, value)) return REDIS_FALSE;
 	if(!redis_recv(redis, REDIS_FLAG_OK)) return REDIS_FALSE;
 	return REDIS_TRUE;
 }
 
-int redis_get(redis_t *redis, const char *key, char **value) {
+int redis_get_ex(redis_t *redis, const char *key, char **value, int *size) {
 	if(!redis_send(redis, "ss", "GET", key)) return REDIS_FALSE;
 	if(!redis_recv(redis, REDIS_FLAG_BULK)) return REDIS_FALSE;
+	if(size) *size = redis->data.sz;
 	if(value) {
 		if(redis->data.sz > 0) {
 			*value = redis->data.str;
@@ -350,6 +364,17 @@ int redis_get(redis_t *redis, const char *key, char **value) {
 			*value = NULL;
 		}
 	}
+	return REDIS_TRUE;
+}
+
+int redis_get(redis_t *redis, const char *key, char **value) {
+	return redis_get_ex(redis, key, value, NULL);
+}
+
+int redis_incrby(redis_t *redis, const char *key, long int inc, long int *value) {
+	if(!redis_send(redis, "ssD", "incrby", key, inc)) return REDIS_FALSE;
+	if(!redis_recv(redis, REDIS_FLAG_INT)) return REDIS_FALSE;
+	if(value) *value = redis->data.l;
 	return REDIS_TRUE;
 }
 
@@ -392,10 +417,7 @@ int redis_close(redis_t *redis) {
 	redis_clean(redis);
 
 	if(redis->fp) {
-		if(fclose(redis->fp)) {
-			perror("FCLOSE");
-			return REDIS_FALSE;
-		}
+		fclose(redis->fp);
 
 		redis->fp = NULL;
 	}

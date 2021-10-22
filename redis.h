@@ -11,6 +11,12 @@
 #define REDIS_FLAG_DEBUG (1<<1)
 #define REDIS_FLAG_ANY   0
 
+#define REDIS_FLAG_OK    '+'
+#define REDIS_FLAG_ERR   '-'
+#define REDIS_FLAG_INT   ':'
+#define REDIS_FLAG_BULK  '$'
+#define REDIS_FLAG_MULTI '*'
+
 typedef struct _redis_data_t {
 	char c;
 	int sz;
@@ -38,6 +44,8 @@ redis_t *redis_init(redis_t *redis, int flag);
 
     int  redis_connect(redis_t *redis, const char *host, int port);
 
+   char* redis_error(redis_t *redis);
+
     int  redis_send(redis_t *redis, const char *format, ...);
     int  redis_senda(redis_t *redis, int argc, const char *argv[]);
 
@@ -53,8 +61,11 @@ redis_t *redis_init(redis_t *redis, int flag);
     int  redis_quit(redis_t *redis);
 
     int  redis_type(redis_t *redis, const char *key, char **rtype);
+    int  redis_del(redis_t *redis, const char *key, int *exists);
     int  redis_set(redis_t *redis, const char *key, const char *value);
+    int  redis_get_ex(redis_t *redis, const char *key, char **value, int *size);
     int  redis_get(redis_t *redis, const char *key, char **value);
+    int  redis_incrby(redis_t *redis, const char *key, long int inc, long int *value);
 
     int  redis_multi(redis_t *redis);
     int  redis_exec(redis_t *redis);
