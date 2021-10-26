@@ -1,6 +1,6 @@
 OBJS = redis.o demo.o
 
-CFLAGS := -O2 $(CFLAGS)
+CFLAGS := -g -O2 $(CFLAGS)
 LDFLAGS := -lm $(LDFLAGS)
 
 ifeq ($(DEBUG),1)
